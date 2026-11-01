@@ -8,6 +8,9 @@ void init_hal() {
 #if defined(HW_LILYGO)
 #include "hw_lilygo.h"
   esp32hal = new LilyGoHal();
+#elif defined(HW_TULEBO_CUSTOM_S3_ETH)
+#include "hw_tulebo_custom_s3_eth.h"
+  esp32hal = new TuleboCustomS3EthHal();
 #elif defined(HW_LILYGO2CAN)
 #include "hw_lilygo2can.h"
   esp32hal = new LilyGo2CANHal();
