@@ -33,6 +33,14 @@ class TuleboCustomS3EthHal : public Esp32Hal {
   virtual gpio_num_t POSITIVE_CONTACTOR_PIN() { return GPIO_NUM_42; }
   virtual gpio_num_t SECOND_BATTERY_CONTACTORS_PIN() { return GPIO_NUM_43; }
 
+    // 4. Inbyggda Ethernet-pinnar för Waveshare-kortet
+  virtual gpio_num_t ETH_SCK_PIN()   { return GPIO_NUM_13; }
+  virtual gpio_num_t ETH_MISO_PIN()  { return GPIO_NUM_12; }
+  virtual gpio_num_t ETH_MOSI_PIN()  { return GPIO_NUM_11; }
+  virtual gpio_num_t ETH_CS_PIN()    { return GPIO_NUM_14; }
+  virtual gpio_num_t ETH_RST_PIN()   { return GPIO_NUM_9; }
+  virtual gpio_num_t ETH_INT_PIN()   { return GPIO_NUM_10; }
+
   // Standardknappen på kortet (GPIO 0)
   virtual gpio_num_t AP_BUTTON_PIN() { return GPIO_NUM_0; }
 

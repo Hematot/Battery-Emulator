@@ -82,7 +82,7 @@ void init_serial() {
   // availableForWrite() report ring-buffer space rather than raw FIFO space.
   Serial.setTxBufferSize(1024);
   Serial.begin(115200);
-#if (HW_LILYGO2CAN || HW_BECOM || HW_WAVESHARE)
+#if (HW_LILYGO2CAN || HW_BECOM || HW_WAVESHARE || HW_TULEBO_CUSTOM_S3_ETH)
   // Wait up to 100ms for Serial to be available. On the ESP32S3 Serial is
   // provided by the USB controller, so will only work if the board is connected
   // to a computer.
@@ -124,7 +124,10 @@ void connectivity_loop(void*) {
 
   while (true) {
     START_TIME_MEASUREMENT(wifi);
-    wifi_monitor();
+
+#ifndef CONFIG_W5500_ETHERNET
+    wifi_monitor(); // Körs BARA om vi INTE har Ethernet aktiverat!
+#endif
 
 #ifndef SMALL_FLASH_DEVICE
     update_display();

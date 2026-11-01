@@ -225,6 +225,15 @@ class Esp32Hal {
   // Momentary push-button that can be long-pressed at runtime to start the Wi-Fi AP. Usually the BOOT button on GPIO0.
   virtual gpio_num_t AP_BUTTON_PIN() { return GPIO_NUM_NC; }
 
+  // Standard-definitioner för Ethernet (så att mjukvaran är universell)
+  virtual gpio_num_t ETH_SCK_PIN()   { return GPIO_NUM_NC; }
+  virtual gpio_num_t ETH_MISO_PIN()  { return GPIO_NUM_NC; }
+  virtual gpio_num_t ETH_MOSI_PIN()  { return GPIO_NUM_NC; }
+  virtual gpio_num_t ETH_CS_PIN()    { return GPIO_NUM_NC; }
+  virtual gpio_num_t ETH_RST_PIN()   { return GPIO_NUM_NC; }
+  virtual gpio_num_t ETH_INT_PIN()   { return GPIO_NUM_NC; }
+
+
   // Returns the available comm interfaces on this HW
   virtual std::vector<comm_interface> available_interfaces() = 0;
 
