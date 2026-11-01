@@ -1,17 +1,35 @@
 #include "network_status.h"
 
+#ifdef CONFIG_W5500_ETHERNET
+#include <SPI.h>
+#include <Ethernet.h>
+#else
 #include <WiFi.h>
+#include "../wifi/wifi.h"      // wifi_connected()
+#endif
 
 #include "../utils/logging.h"  // logging, syslog_start()
-#include "../wifi/wifi.h"      // wifi_connected()
 #include "mdns.h"              // init_mDNS()
 
+#ifdef CONFIG_W5500_ETHERNET
+bool ethernet_started = false;
+#endif
+
 bool network_connected() {
+#ifdef CONFIG_W5500_ETHERNET
+  if (!ethernet_started) return false;
+  return Ethernet.linkStatus() == LinkON;
+#else
   return wifi_connected();
+#endif
 }
 
 IPAddress network_localIP() {
+#ifdef CONFIG_W5500_ETHERNET
+  return Ethernet.localIP();
+#else
   return WiFi.localIP();
+#endif
 }
 
 void network_bring_services_up(const IPAddress& ip) {
@@ -22,3 +40,32 @@ void network_bring_services_up(const IPAddress& ip) {
   init_mDNS();
 #endif
 }
+
+#ifdef CONFIG_W5500_ETHERNET
+void init_waveshare_ethernet() {
+  if (ethernet_started) return;
+
+  Serial.println("Initierar Waveshare W5500 Ethernet via SPI...");
+
+  int eth_cs_pin = 14; 
+  int eth_rst_pin = 9;
+
+  pinMode(eth_rst_pin, OUTPUT);
+  digitalWrite(eth_rst_pin, LOW);
+  delay(20);
+  digitalWrite(eth_rst_pin, HIGH);
+  delay(200);
+
+  Ethernet.init(eth_cs_pin);
+
+  if (Ethernet.begin() == 0) {
+    Serial.println("Kritiskt fel: DHCP misslyckades för Ethernet!");
+    ethernet_started = false;
+  } else {
+    ethernet_started = true;
+    Serial.print("Ethernet startat! IP: ");
+    Serial.println(Ethernet.localIP());
+    network_bring_services_up(Ethernet.localIP());
+  }
+}
+#endif

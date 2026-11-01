@@ -96,10 +96,20 @@ void init_serial() {
 #endif
 }
 
+#ifdef CONFIG_W5500_ETHERNET
+void init_waveshare_ethernet();
+#endif
+
 void connectivity_loop(void*) {
   esp_task_wdt_add(NULL);  // Register this task with WDT
+  
+#ifdef CONFIG_W5500_ETHERNET
+  init_waveshare_ethernet();
+#else
   // Init wifi
   init_WiFi();
+#endif
+
 
   init_webserver();
 
