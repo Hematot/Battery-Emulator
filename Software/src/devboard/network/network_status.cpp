@@ -1,9 +1,7 @@
 #include "network_status.h"
 
 #ifdef CONFIG_W5500_ETHERNET
-#include <SPI.h>
-#include <Ethernet.h>
-#include <esp_mac.h>
+#include <ETH.h> // ESP32:s inbyggda, asynkrona LwIP-Ethernet
 #else
 #include <WiFi.h>
 #include "../wifi/wifi.h"      // wifi_connected()
@@ -12,14 +10,9 @@
 #include "../utils/logging.h"  // logging, syslog_start()
 #include "mdns.h"              // init_mDNS()
 
-#ifdef CONFIG_W5500_ETHERNET
-bool ethernet_started = false;
-#endif
-
 bool network_connected() {
 #ifdef CONFIG_W5500_ETHERNET
-  if (!ethernet_started) return false;
-  return Ethernet.linkStatus() == LinkON;
+  return ETH.linkStatus() == LinkON && ETH.localIP() != IPAddress(0,0,0,0);
 #else
   return wifi_connected();
 #endif
@@ -27,7 +20,7 @@ bool network_connected() {
 
 IPAddress network_localIP() {
 #ifdef CONFIG_W5500_ETHERNET
-  return Ethernet.localIP();
+  return ETH.localIP();
 #else
   return WiFi.localIP();
 #endif
@@ -43,53 +36,50 @@ void network_bring_services_up(const IPAddress& ip) {
 }
 
 #ifdef CONFIG_W5500_ETHERNET
-void init_waveshare_ethernet() {
-  // Om vi redan är igång eller om vi väntar på DHCP, gör inget
-  static unsigned long last_dhcp_attempt = 0;
-  if (ethernet_started) return;
-
-  // Begränsa hur ofta vi tjatar på routern om DHCP har misslyckats (t.ex. var 15:e sekund)
-  if (last_dhcp_attempt > 0 && millis() - last_dhcp_attempt < 15000) {
-    return;
+// Händelselyssnare (Event Handler) som triggas asynkront av ESP32:s operativsystem
+void on_eth_event(WiFiEvent_t event) {
+  switch (event) {
+    case ARDUINO_EVENT_ETH_GOT_IP:
+      Serial.print("Ethernet har fått IP-adress: ");
+      Serial.println(ETH.localIP());
+      network_bring_services_up(ETH.localIP());
+      break;
+    case ARDUINO_EVENT_ETH_LOST_IP:
+      Serial.println("Ethernet tappade IP-adressen.");
+      break;
+    case ARDUINO_EVENT_ETH_CONNECTED:
+      Serial.println("Fysisk nätverkskabel ansluten.");
+      break;
+    case ARDUINO_EVENT_ETH_DISCONNECTED:
+      Serial.println("Fysisk nätverkskabel urdragen.");
+      break;
+    default:
+      break;
   }
-  
-  last_dhcp_attempt = millis();
-  Serial.println("Initierar Waveshare W5500 Ethernet via SPI...");
+}
+
+void init_waveshare_ethernet() {
+  Serial.println("Registrerar Waveshare W5500 i ESP32:s nätverksstack...");
 
   int eth_cs_pin = 14; 
   int eth_rst_pin = 9;
+  int eth_int_pin = 10; // W5500 interna avbrottspinne på Waveshare-kortet
 
-  // Hårdvaru-reset på W5500
+  // Starta händelselyssnaren
+  WiFi.onEvent(on_eth_event);
+
+  // Gör en ren hårdvaru-reset på W5500-chippet innan start
   pinMode(eth_rst_pin, OUTPUT);
   digitalWrite(eth_rst_pin, LOW);
   delay(20);
   digitalWrite(eth_rst_pin, HIGH);
   delay(200);
 
-  Ethernet.init(eth_cs_pin);
-
-  // Kolla om kabeln överhuvudtaget är i innan vi försöker med DHCP
-  if (Ethernet.linkStatus() == LinkOFF) {
-    Serial.println("Nätverkskabel ej ansluten! Väntar...");
-    ethernet_started = false;
-    return; // Avbryt elegant. Loopen kommer att hoppa hit igen om 15 sekunder.
-  }
-
-  uint8_t mac[6];
-  esp_read_mac(mac, ESP_MAC_WIFI_STA);
+  // Aktivera W5500 direkt i ESP32:s inbyggda LwIP-stack (Asynkront!)
+  // Parametrar: (SPI_CS, SPI_INT, SPI_RST, SPI_CLK_SPEED, SPI_HOST)
+  // På Waveshare sitter den på SPI2_HOST (FSPI)
+  ETH.begin(ETH_PHY_W5500, 1, eth_cs_pin, eth_int_pin, eth_rst_pin, SPI2_HOST);
   
-  Serial.println("Begär IP-adress från router (DHCP)...");
-  
-  // Vi kör en kortare timeout (4 sekunder) så att vi inte blockerar processorn för länge
-  if (Ethernet.begin(mac, 4000) == 0) {
-    Serial.println("DHCP misslyckades. Försöker igen om 15 sekunder...");
-    ethernet_started = false;
-  } else {
-    ethernet_started = true;
-    Serial.print("Ethernet anslutet framgångsrikt! IP: ");
-    Serial.println(Ethernet.localIP());
-    network_bring_services_up(Ethernet.localIP());
-  }
+  Serial.println("Ethernet-initiering skickad till bakgrunden.");
 }
 #endif
-
