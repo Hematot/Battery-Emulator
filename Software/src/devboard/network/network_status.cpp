@@ -3,6 +3,7 @@
 #ifdef CONFIG_W5500_ETHERNET
 #include <SPI.h>
 #include <Ethernet.h>
+#include <esp_mac.h>
 #else
 #include <WiFi.h>
 #include "../wifi/wifi.h"      // wifi_connected()
@@ -43,36 +44,52 @@ void network_bring_services_up(const IPAddress& ip) {
 
 #ifdef CONFIG_W5500_ETHERNET
 void init_waveshare_ethernet() {
+  // Om vi redan är igång eller om vi väntar på DHCP, gör inget
+  static unsigned long last_dhcp_attempt = 0;
   if (ethernet_started) return;
 
+  // Begränsa hur ofta vi tjatar på routern om DHCP har misslyckats (t.ex. var 15:e sekund)
+  if (last_dhcp_attempt > 0 && millis() - last_dhcp_attempt < 15000) {
+    return;
+  }
+  
+  last_dhcp_attempt = millis();
   Serial.println("Initierar Waveshare W5500 Ethernet via SPI...");
 
   int eth_cs_pin = 14; 
   int eth_rst_pin = 9;
 
-  // Gör en hårdvaru-reset på W5500-chippet
+  // Hårdvaru-reset på W5500
   pinMode(eth_rst_pin, OUTPUT);
   digitalWrite(eth_rst_pin, LOW);
   delay(20);
   digitalWrite(eth_rst_pin, HIGH);
   delay(200);
 
-  // Säg till Ethernet-biblioteket vilken CS-pinne som gäller
   Ethernet.init(eth_cs_pin);
 
-  // Hämta ESP32:ans inbyggda hårdvaru-MAC-adress så vi slipper hårdkoda en
-  uint8_t mac[6];
-  esp_efuse_read_mac_address_default(mac);
+  // Kolla om kabeln överhuvudtaget är i innan vi försöker med DHCP
+  if (Ethernet.linkStatus() == LinkOFF) {
+    Serial.println("Nätverkskabel ej ansluten! Väntar...");
+    ethernet_started = false;
+    return; // Avbryt elegant. Loopen kommer att hoppa hit igen om 15 sekunder.
+  }
 
-  // Starta Ethernet med ESP32:ans inbyggda MAC-adress via DHCP
-  if (Ethernet.begin(mac) == 0) {
-    Serial.println("Kritiskt fel: DHCP misslyckades för Ethernet!");
+  uint8_t mac[6];
+  esp_read_mac(mac, ESP_MAC_WIFI_STA);
+  
+  Serial.println("Begär IP-adress från router (DHCP)...");
+  
+  // Vi kör en kortare timeout (4 sekunder) så att vi inte blockerar processorn för länge
+  if (Ethernet.begin(mac, 4000) == 0) {
+    Serial.println("DHCP misslyckades. Försöker igen om 15 sekunder...");
     ethernet_started = false;
   } else {
     ethernet_started = true;
-    Serial.print("Ethernet startat! IP: ");
+    Serial.print("Ethernet anslutet framgångsrikt! IP: ");
     Serial.println(Ethernet.localIP());
     network_bring_services_up(Ethernet.localIP());
   }
 }
 #endif
+
