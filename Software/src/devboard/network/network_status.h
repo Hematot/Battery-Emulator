@@ -1,6 +1,10 @@
 #pragma once
 
+#ifndef CONFIG_W5500_ETHERNET
 #include <WiFi.h>
+#else
+#include <Arduino.h>
+#endif
 
 // Shared network-state helpers
 
